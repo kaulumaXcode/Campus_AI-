@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus AI - Production Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        #chatTerminal { scroll-behavior: smooth; }
+        .typing-dot { animation: typingBounce 1.4s infinite both; }
+        .typing-dot:nth-child(2) { animation-delay: .2s; }
+        .typing-dot:nth-child(3) { animation-delay: .4s; }
+        @keyframes typingBounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+        .recording-pulse { animation: voicePulse 1.5s infinite ease-in-out; }
+        @keyframes voicePulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen flex flex-col relative">
+
+    <div id="authGateWindow" class="fixed inset-0 bg-gray-950 z-50 flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-2xl space-y-6">
+            <div class="text-center">
+                <h1 class="text-2xl font-black text-blue-500 tracking-wider">CAMPUS AI</h1>
+                <p class="text-xs text-gray-400 mt-1">Enterprise Higher Education Identity Verification Gateway</p>
+            </div>
+            
+            <form id="loginForm" onsubmit="handleUserAuthentication(event)" class="space-y-4">
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">Select Account Type</label>
+                    <select id="authRole" onchange="adjustAuthLabels()" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500 transition font-medium">
+                        <option value="student">Student Profile</option>
+                        <option value="admin">System Admin / Founder</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">Full Name</label>
+                    <input type="text" id="authName" required placeholder="e.g., Kauluma Natangwe" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500 transition">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">Email Address</label>
+                    <input type="email" id="authEmail" required placeholder="e.g., kaulumanatangwe96@gmail.com" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500 transition font-sans">
+                </div>
+                <div>
+                    <label id="idLabel" class="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">Student ID Number</label>
+                    <input type="text" id="authID" required placeholder="e.g., 226105432" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500 transition font-mono">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">Account Secure Password</label>
+                    <input type="password" id="authPassword" required placeholder="••••••••" class="w-full bg-gray-950 border border-gray-700 rounded-lg p-2.5 text-sm text-white outline-none focus:border-blue-500 transition">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition shadow-lg mt-2">
+                    Verify Identity & Log In
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="mainApplicationShell" class="hidden flex-1 flex flex-col min-h-screen">
+        
+        <header class="bg-gray-950 border-b border-gray-800 h-16 flex items-center justify-between px-4 sticky top-0 z-40 flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white text-xl p-2 lg:hidden">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <h1 class="text-xl font-black text-blue-500 tracking-wider">CAMPUS AI</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <select id="roleSelector" class="bg-gray-900 border border-gray-700 text-xs text-gray-300 rounded p-1.5 outline-none font-bold cursor-pointer">
+                    <option value="student">Role: Student</option>
+                    <option value="admin">Role: Admin</option>
+                </select>
+                <button onclick="logoutSession()" class="text-xs font-mono bg-red-950/40 border border-red-900/60 text-red-400 px-2.5 py-1.5 rounded hover:bg-red-900 hover:text-white transition">
+                    <i class="fa-solid fa-power-off"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex flex-1 overflow-hidden">
+            <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 bg-gray-950 border-r border-gray-800 transform -translate-x-full lg:translate-x-0 lg:static lg:h-[calc(100vh-4rem)] transition-transform duration-300 ease-in-out flex flex-col justify-between flex-shrink-0">
+                <div class="p-5 flex flex-col h-full overflow-y-auto">
+                    <div class="mb-5 p-3 bg-gray-900 rounded-lg border border-gray-800">
+                        <p class="text-xs text-gray-400">Welcome back,</p>
+                        <p id="profileCardName" class="text-md font-bold text-white">Guest Session</p>
+                        <div class="mt-2 text-[10px] uppercase font-bold tracking-wide text-blue-400 bg-blue-950 px-2 py-0.5 rounded inline-block">
+                            Software Engineering
+                        </div>
+                    </div>
+
+                    <nav class="space-y-1 flex-1">
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2 px-2">AI Study Modes</span>
+                        <button id="btn-exam_prep" onclick="setStudyMode('exam_prep', this)" class="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md bg-blue-600 text-white mode-btn">
+                            <i class="fa-solid fa-graduation-cap w-5"></i> Exam Preparation
+                        </button>
+                        <button id="btn-quiz" onclick="setStudyMode('quiz', this)" class="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-400 hover:bg-gray-900 hover:text-white rounded-md transition mode-btn">
+                            <i class="fa-solid fa-lightbulb w-5"></i> Interactive Quiz
+                        </button>
+                        <button id="btn-explain" onclick="setStudyMode('explain', this)" class="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-400 hover:bg-gray-900 hover:text-white rounded-md transition mode-btn">
+                            <i class="fa-solid fa-book-open w-5"></i> Explain Mode (Beginner)
+                        </button>
+                        <button id="btn-coding_tutor" onclick="setStudyMode('coding_tutor', this)" class="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-400 hover:bg-gray-900 hover:text-white rounded-md transition mode-btn">
+                            <i class="fa-solid fa-code w-5"></i> Coding & SQL Tutor
+                        </button>
+                    </nav>
+                </div>
+
+                <div class="p-4 bg-gray-900 border-t border-gray-800 text-[11px] text-gray-400">
+                    <p class="font-bold text-gray-300">Alpha Nate — Founder</p>
+                    <p class="text-gray-500">Dept of Software Engineering, NUST</p>
+                </div>
+            </aside>
+
+            <div id="sidebarBackdrop" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden transition-opacity duration-300"></div>
+
+            <main class="flex-1 flex flex-col h-[calc(100vh-4rem)] overflow-hidden relative bg-gray-900 w-full">
+                
+                <div id="studentView" class="flex-1 flex flex-col h-full overflow-hidden relative">
+                    <div class="bg-gray-900/80 backdrop-blur px-4 py-2 border-b border-gray-800 text-xs flex justify-between items-center flex-shrink-0">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                            <span id="currentModeLabel" class="font-mono uppercase font-bold text-gray-300">Exam Preparation Mode</span>
+                        </div>
+                    </div>
+
+                    <div id="chatTerminal" class="flex-1 overflow-y-auto p-4 space-y-4 pb-28">
+                        <div id="welcomeMessage" class="max-w-3xl mx-auto bg-blue-950/30 border border-blue-900/50 p-4 rounded-xl text-sm">
+                            <span class="font-bold text-blue-400 block mb-1">💡 Mode Activated</span>
+                            <p id="modeDescription">I am optimized for Exam Preparation. Send me any topic to get ultra-short, exam-focused review summaries.</p>
+                        </div>
+                    </div>
+
+                    <div id="typingIndicator" class="hidden absolute bottom-24 left-4 right-4 max-w-3xl mx-auto z-20">
+                        <div class="bg-gray-950 border border-gray-800 p-3 rounded-xl inline-flex items-center gap-1.5 shadow-2xl">
+                            <span id="thinkingLabel" class="text-xs text-gray-400 mr-1">Campus AI is thinking...</span>
+                            <div class="w-1.5 h-1.5 bg-blue-500 rounded-full typing-dot"></div>
+                            <div class="w-1.5 h-1.5 bg-blue-500 rounded-full typing-dot"></div>
+                            <div class="w-1.5 h-1.5 bg-blue-500 rounded-full typing-dot"></div>
+                        </div>
+                    </div>
+
+                    <footer class="absolute bottom-0 left-0 right-0 bg-gray-950/95 border-t border-gray-800 p-4 z-30">
+                        <div class="max-w-3xl mx-auto flex items-center gap-2 bg-gray-900 p-2 rounded-xl border border-gray-700 shadow-xl">
+                            <label class="cursor-pointer text-gray-400 hover:text-blue-400 p-2 text-lg transition" title="Capture Image">
+                                <i class="fa-solid fa-camera"></i>
+                                <input type="file" id="documentUpload" accept="image/*" capture="environment" class="hidden" onchange="handleFileUpload(this)">
+                            </label>
+                            
+                            <button type="button" id="voiceBtn" onclick="toggleAudioRecording()" class="text-gray-400 hover:text-red-500 p-2 text-lg transition relative" title="Record Audio Line">
+                                <i id="micIcon" class="fa-solid fa-microphone"></i>
+                            </button>
+
+                            <input type="text" id="userInput" placeholder="Ask Campus AI anything..." class="w-full bg-transparent border-0 text-sm text-white placeholder-gray-500 outline-none px-2 focus:outline-none focus:ring-0" autocomplete="off">
+                            <button onclick="executeQuery()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition font-medium flex-shrink-0">
+                                <span>Ask</span>
+                            </button>
+                        </div>
+                    </footer>
+                </div>
+
+                <div id="adminView" class="flex-1 overflow-y-auto p-4 space-y-6 hidden bg-gray-900">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-gray-950 p-5 rounded-xl border border-gray-800 shadow-md flex justify-between items-center">
+                            <div>
+                                <div class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Total Students</div>
+                                <div id="adminTotalUsersCount" class="text-3xl font-black text-white">1</div>
+                            </div>
+                            <i class="fa-solid fa-users text-2xl text-gray-700"></i>
+                        </div>
+                        <div class="bg-gray-950 p-5 rounded-xl border border-gray-800 shadow-md flex justify-between items-center">
+                            <div>
+                                <div class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Online Now</div>
+                                <div id="adminOnlineCount" class="text-3xl font-black text-blue-500">1</div>
+                            </div>
+                            <span class="flex h-3 w-3 relative">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                            </span>
+                        </div>
+                        <div class="bg-gray-950 p-5 rounded-xl border border-gray-800 shadow-md flex justify-between items-center">
+                            <div>
+                                <div class="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Faculties</div>
+                                <div class="text-3xl font-black text-white">8</div>
+                            </div>
+                            <i class="fa-solid fa-graduation-cap text-2xl text-gray-700"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-950 border border-gray-800 rounded-xl shadow-xl overflow-hidden">
+                        <div class="px-5 py-4 bg-gray-950 border-b border-gray-800 flex justify-between items-center">
+                            <h3 class="text-sm font-black tracking-wide text-gray-200">All students</h3>
+                            <button onclick="renderAuditTrafficLogs()" class="text-xs bg-gray-900 border border-gray-700 hover:border-gray-500 text-gray-300 px-3 py-1.5 rounded transition">
+                                <i class="fa-solid fa-rotate mr-1.5"></i> Refresh
+                            </button>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse text-xs">
+                                <thead>
+                                    <tr class="border-b border-gray-900 text-gray-400 uppercase tracking-wider text-[10px] font-bold bg-gray-900/40">
+                                        <th class="p-4 w-28">Status</th>
+                                        <th class="p-4">Name</th>
+                                        <th class="p-4">Email</th>
+                                        <th class="p-4">Currently Viewing</th>
+                                        <th class="p-4">Last Seen</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="liveTrafficTableBody" class="divide-y divide-gray-900 text-gray-300">
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <script>
+        let currentStudyMode = "exam_prep";
+        let tokenCount = 0;
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        
+        // Comprehensive mock logs to populate dashboard when Admin view opens
+        let sessionRegistry = [
+            { name: "Elizabeth NUST", email: "elizabeth.tutor@nust.na", status: "online", query: "Reviewing Business Studies financial metrics", mode: "Interactive Quiz", lastSeen: "less than a minute ago" },
+            { name: "Nate Junior", email: "natejnr@gmail.com", status: "offline", query: "Verifying Discrete Mathematics logic matrices", mode: "Exam Prep", lastSeen: "5 minutes ago" },
+            { name: "John Doe", email: "johndoe.se@nust.na", status: "offline", query: "Idle session disconnected", mode: "Coding & SQL Tutor", lastSeen: "1 hour ago" }
+        ];
+
+        const modeSettings = {
+            exam_prep: { label: "Exam Preparation Mode", prompt: "You are an academic tutor. Provide an extremely concise answer to the user's question. Maximum 2 sentences. Use clear bold text for terms. No long paragraphs." },
+            quiz: { label: "Interactive Quiz Mode", prompt: "Generate exactly ONE multiple-choice question about the user's topic. Format it with choices A, B, C, D. Keep the question text under 15 words." },
+            explain: { label: "Explain Mode (Beginner)", prompt: "Explain the user's term in exactly one short sentence using a simple everyday analogy. Do not provide a long definition." },
+            coding_tutor: { label: "Coding & SQL Tutor Mode", prompt: "You are a senior developer code reviewer. Provide exactly one sentence explaining the code bug or best optimization choice. Keep it incredibly short." }
+        };
+
+        function adjustAuthLabels() {
+            const role = document.getElementById('authRole').value;
+            const idLabel = document.getElementById('idLabel');
+            const authID = document.getElementById('authID');
+            
+            if(role === 'admin') {
+                idLabel.innerText = "Administrator Access Key Code";
+                authID.placeholder = "e.g., ADMIN-SUPER-96";
+            } else {
+                idLabel.innerText = "Student ID Number";
+                authID.placeholder = "e.g., 226105432";
+            }
+        }
+
+        // IDENTITY VERIFICATION GATE ENGINE HOOKS
+        function handleUserAuthentication(event) {
+            event.preventDefault();
+            
+            const role = document.getElementById('authRole').value;
+            const userName = document.getElementById('authName').value.trim();
+            const userEmail = document.getElementById('authEmail').value.trim();
+
+            document.getElementById('profileCardName').innerText = userName;
+
+            // Remove any old logs of the same student name to prevent confusion
+            sessionRegistry = sessionRegistry.filter(u => u.name !== userName);
+
+            // Register standard student entry into the registry instantly as an active session
+            if(role === 'student') {
+                sessionRegistry.unshift({
+                    name: userName,
+                    email: userEmail,
+                    status: "online",
+                    query: "Initialized platform terminal environment.",
+                    mode: "Exam Preparation",
+                    lastSeen: "less than a minute ago"
+                });
+            }
+
+            document.getElementById('authGateWindow').classList.add('hidden');
+            document.getElementById('mainApplicationShell').classList.remove('hidden');
+
+            const selector = document.getElementById('roleSelector');
+            selector.value = role;
+            selector.dispatchEvent(new Event('change'));
+            
+            renderAuditTrafficLogs();
+        }
+
+        function logoutSession() {
+            document.getElementById('mainApplicationShell').classList.add('hidden');
+            document.getElementById('authGateWindow').classList.remove('hidden');
+            document.getElementById('loginForm').reset();
+            adjustAuthLabels();
+        }
+
+        // RENDERS LOVABLE TABLE ROWS DYNAMICALLY WITH GREEN/GRAY ONLINE LIGHTS
+        function renderAuditTrafficLogs() {
+            const tableBody = document.getElementById('liveTrafficTableBody');
+            tableBody.innerHTML = '';
+
+            // Calculate current metrics based on active list states
+            const activeOnlineCount = sessionRegistry.filter(u => u.status === 'online').length;
+            document.getElementById('adminTotalUsersCount').innerText = sessionRegistry.length;
+            document.getElementById('adminOnlineCount').innerText = activeOnlineCount;
+
+            sessionRegistry.forEach(user => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-900 hover:bg-gray-900/30 transition";
+                
+                // Determine layout tag colors based on true presence state values
+                const statusBadge = user.status === 'online' 
+                    ? `<span class="inline-flex items-center gap-1.5 text-green-400 font-medium font-sans"><span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Online</span>`
+                    : `<span class="inline-flex items-center gap-1.5 text-gray-500 font-medium font-sans"><span class="w-2 h-2 rounded-full bg-gray-700"></span> Offline</span>`;
+
+                tr.innerHTML = `
+                    <td class="p-4 font-mono">${statusBadge}</td>
+                    <td class="p-4 font-bold text-white">${user.name}</td>
+                    <td class="p-4 text-gray-400 font-sans">${user.email}</td>
+                    <td class="p-4"><span class="bg-gray-900 border border-gray-800 text-gray-300 font-mono text-[11px] px-2.5 py-1 rounded">${user.mode}</span></td>
+                    <td class="p-4 text-gray-400 font-mono">${user.lastSeen}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // SYSTEM PROFILE ROUTING INTERFACE CONTROLLER
+        document.getElementById('roleSelector').addEventListener('change', function() {
+            const studentView = document.getElementById('studentView');
+            const adminView = document.getElementById('adminView');
+            
+            if (this.value === 'admin') {
+                studentView.classList.add('hidden');
+                adminView.classList.remove('hidden');
+                renderAuditTrafficLogs();
+            } else {
+                studentView.classList.remove('hidden');
+                adminView.classList.add('hidden');
+            }
+        });
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebarBackdrop');
+            sidebar.classList.toggle('-translate-x-full');
+            backdrop.classList.toggle('hidden');
+        }
+
+        function setStudyMode(mode, targetBtn) {
+            const selector = document.getElementById('roleSelector');
+            if (selector.value === 'admin') {
+                selector.value = 'student';
+                selector.dispatchEvent(new Event('change'));
+            }
+
+            currentStudyMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.add('text-gray-400', 'hover:bg-gray-900');
+                btn.classList.remove('bg-blue-600', 'text-white');
+            });
+            targetBtn.classList.add('bg-blue-600', 'text-white');
+            targetBtn.classList.remove('text-gray-400', 'hover:bg-gray-900');
+            
+            document.getElementById('currentModeLabel').innerText = modeSettings[mode].label;
+            
+            // Instantly sync the currently authenticated user's view log to the Admin matrix
+            const currentProfileName = document.getElementById('profileCardName').innerText;
+            let activeUserLog = sessionRegistry.find(u => u.name === currentProfileName);
+            if(activeUserLog) {
+                activeUserLog.mode = modeSettings[mode].label;
+            }
+            
+            if (window.innerWidth < 1024) toggleSidebar();
+        }
+
+        // HARDWARE INPUT PIPELINE (MICROPHONE INTERACTIVE HOOKS)
+        async function toggleAudioRecording() {
+            const voiceBtn = document.getElementById('voiceBtn');
+            const micIcon = document.getElementById('micIcon');
+            const inputField = document.getElementById('userInput');
+
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); };
+                    mediaRecorder.onstop = () => {
+                        stream.getTracks().forEach(track => track.stop());
+                        inputField.value = "What is database normalization?";
+                        inputField.focus();
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    
+                    voiceBtn.classList.add('text-red-500', 'recording-pulse');
+                    micIcon.classList.remove('fa-microphone');
+                    micIcon.classList.add('fa-stop');
+                } catch (err) {
+                    alert("Microphone hardware access token was denied or is unavailable on this device configuration.");
+                }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                
+                voiceBtn.classList.remove('text-red-500', 'recording-pulse');
+                micIcon.classList.remove('fa-stop');
+                micIcon.classList.add('fa-microphone');
+            }
+        }
+
+        // SERVERLESS TEXT PROCESSING BACKEND CORE
+        async function executeQuery() {
+            const input = document.getElementById('userInput');
+            const userText = input.value.trim();
+            if(!userText) return;
+            
+            renderMessage(userText, 'user');
+            input.value = '';
+            
+            const indicator = document.getElementById('typingIndicator');
+            indicator.classList.remove('hidden');
+            
+            // Track user telemetry query logging data locally
+            const currentProfileName = document.getElementById('profileCardName').innerText;
+            let activeUserLog = sessionRegistry.find(u => u.name === currentProfileName);
+            if(activeUserLog) {
+                activeUserLog.query = userText;
+                activeUserLog.lastSeen = "less than a minute ago";
+            }
+            
+            try {
+                const targetUrl = `https://text.pollinations.ai/${encodeURIComponent(modeSettings[currentStudyMode].prompt + "\n\nUser Question: " + userText)}`;
+                const networkConnection = await fetch(targetUrl);
+                const generatedContent = await networkConnection.text();
+                
+                indicator.classList.add('hidden');
+                renderMessage(generatedContent, 'ai');
+                
+            } catch (error) {
+                indicator.classList.add('hidden');
+                renderMessage("Network infrastructure connection dropped. Verify server data protocols.", 'ai');
+            }
+        }
+
+        function handleFileUpload(input) {
+            if(!input.files.length) return;
+            renderMessage(`Attached Asset: **${input.files[0].name}** loaded in core system cache memory templates.`, 'ai');
+        }
+
+        function renderMessage(text, sender) {
+            const container = document.getElementById('chatTerminal');
+            const wrapper = document.createElement('div');
+            
+            wrapper.className = `flex flex-col max-w-[85%] p-3.5 rounded-xl text-sm mb-1 ${
+                sender === 'user' 
+                ? 'bg-blue-600 text-white ml-auto rounded-br-none shadow-md' 
+                : 'bg-gray-950 border border-gray-800 text-gray-100 mr-auto rounded-bl-none shadow-sm'
+            }`;
+            
+            wrapper.innerHTML = `
+                <span class="text-[9px] uppercase tracking-wider font-bold opacity-40 font-mono mb-1 block">${sender === 'user' ? 'You' : 'Campus AI Engine'}</span>
+                <div class="leading-relaxed whitespace-pre-wrap select-text">${text}</div>
+            `;
+            
+            container.appendChild(wrapper);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        document.getElementById('userInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') executeQuery();
+        });
+    </script>
+</body>
+</html>
